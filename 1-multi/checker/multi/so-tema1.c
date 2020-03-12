@@ -39,7 +39,7 @@ void freeBucket(Bucket **head) {
 int hashcode(char *key) {
     int hash = 0;
     while (*key) {
-        hash = (hash * 5) + *key++ - '0';
+        hash += *key++;
     }
     return hash % MAP_SIZE;
 
@@ -112,13 +112,15 @@ int insertMapping(Map *map, char **argument) {
     char *symbol = NULL;
     char *mapping = NULL;
     char *token = NULL;
+    char delimiters[] = "= ";
+    int index = 0;
+    int code = 0;
+
     char *temp = malloc((strlen(*argument) + 1) * sizeof(char));
     if (temp == NULL) {
         return ERROR_ALLOC;
     }
-    char delimiters[] = "= ";
 
-    int index = 0;
 
     if (*argument[0] == ' ') {
         (*argument)++;
@@ -153,10 +155,10 @@ int insertMapping(Map *map, char **argument) {
     if (mapping == NULL) {
         mapping = "";
     }
-    if (put(map, symbol, mapping)) {
+    code = put(map, symbol, mapping);
+    if (code) {
         return ERROR_ALLOC;
     }
-
     free(temp);
     free(symbol);
     if (strcmp(mapping, "") != 0) {
@@ -213,37 +215,76 @@ int getParameters(int argc, char **argv, char **argumentsString) {
     return 0;
 }
 
+int countCharsInSubstring(char *s1, char *s2, char c) {
+
+    return s1 == s2
+           ? 0
+           : countCharsInSubstring(s1 + 1, s2, c) + (*s1 == c);
+}
+
+void findIndexOfToken(char* inputBuffer, char **p, char* token) {
+    int no_quotes = 0;
+    char *auxPointer = inputBuffer;
+
+    do {
+        *p = strstr(auxPointer, token);
+        no_quotes += countCharsInSubstring(auxPointer,  *p, '\"');
+        auxPointer = *p + strlen(token);
+    } while (no_quotes % 2 != 0);
+
+}
+
 int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer) {
     char *token = NULL;
     char defineDirective[] = "#define";
+    int code = 0;
+    char* value = NULL;
     char *temp = malloc((strlen(inputBuffer) + 1) * sizeof(char));
+
     if (temp == NULL) {
         return ERROR_ALLOC;
     }
 
     strcpy(temp, inputBuffer);
-
     token = strtok(temp, DELIMITERS);
 
     while (token != NULL) {
         if (strncmp(token, defineDirective, strlen(defineDirective)) == 0) {
             char *key = NULL;
-            char *value = NULL;
+            char *mapping = NULL;
+
             token = strtok(NULL, DELIMITERS);
             key = token;
-            token = strtok(NULL, DELIMITERS);
-            value = token;
-            put(map, key, value);
+            token = strtok(NULL, "\n");
+            mapping = token;
+            if (mapping[strlen(mapping) - 1] == '\n') {
+                mapping[strlen(mapping) - 1] = '\0';
+            }
+            code = put(map, key, mapping);
+            if (code) {
+                return ERROR_ALLOC;
+            }
             free(temp);
 
             strcpy(outputBuffer, "\0");
             return 0;
         }
+        value = search(*map, token);
+
+        if (value != NULL) {
+            char *p;
+
+            findIndexOfToken(inputBuffer, &p, token);
+
+            strncat(outputBuffer, inputBuffer, p - inputBuffer);
+            strncat(outputBuffer, value, strlen(value));
+            inputBuffer += (p - inputBuffer + strlen(token));
+        }
         token = strtok(NULL, DELIMITERS);
     }
+    strncat(outputBuffer, inputBuffer, strlen(inputBuffer));
 
     free(temp);
-    strcpy(outputBuffer, inputBuffer);
 
     return 0;
 }
@@ -251,6 +292,7 @@ int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer) {
 int execute(Map *map, const char *inputFile, const char *outputFile) {
     char inputBuffer[LINE_SIZE];
     char outputBuffer[LINE_SIZE];
+    outputBuffer[0] = '\0';
 
     FILE *fin = NULL;
     FILE *fout = NULL;
@@ -282,11 +324,9 @@ int execute(Map *map, const char *inputFile, const char *outputFile) {
                 printf("%s", outputBuffer);
             } else {
                 fprintf(fout, "%s", outputBuffer);
-//            if(strncmp(inputBuffer, "exit", 4) == 0) {
-//                break;
-//            }
             }
         }
+        outputBuffer[0] = '\0';
     }
 
     if (fout != NULL) {
@@ -305,6 +345,7 @@ int parseParameters(char *argumentsString) {
     char *dir = NULL;
     int code = 0;
     Map map;
+
     map.buckets = calloc(MAP_SIZE, sizeof(Bucket *));
     if (map.buckets == NULL) {
         return ERROR_ALLOC;
@@ -339,14 +380,14 @@ int parseParameters(char *argumentsString) {
                         break;
                     case 'I':
                         argumentsString++;
-                        if(argumentsString[0] == ' ') {
+                        if (argumentsString[0] == ' ') {
                             argumentsString++;
                         }
-                        if(dir != NULL) {
+                        if (dir != NULL) {
                             free(dir);
                         }
                         code = getFilename(&argumentsString, &dir);
-                        if(code) {
+                        if (code) {
                             return ERROR_ALLOC;
                         }
                         break;
@@ -384,13 +425,13 @@ int parseParameters(char *argumentsString) {
     if (code) {
         return ERROR_ALLOC;
     }
-    if(outputFile != NULL) {
+    if (outputFile != NULL) {
         free(outputFile);
     }
-    if(inputFile != NULL) {
+    if (inputFile != NULL) {
         free(inputFile);
     }
-    if(dir != NULL) {
+    if (dir != NULL) {
         free(dir);
     }
     freeHashMap(&map);
@@ -400,7 +441,7 @@ int parseParameters(char *argumentsString) {
 
 int main(int argc, char *argv[]) {
     char *argumentsString = NULL;
-    int code;
+    int code = 0;
 
     if (argc > 1) {
         code = getParameters(argc, argv, &argumentsString);
