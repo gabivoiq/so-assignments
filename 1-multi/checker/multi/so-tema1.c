@@ -85,6 +85,34 @@ int put(Map *map, char *key, char *value) {
     return 0;
 }
 
+int deleteEntry(Map **map, char *key) {
+    int hashIndex = hashcode(key);
+    Bucket *aux = (*map)->buckets[hashIndex];
+    Bucket *p;
+
+    if (strcmp(aux->key, key) == 0) {
+        (*map)->buckets[hashIndex] = (*map)->buckets[hashIndex]->next;
+        free(aux->key);
+        free(aux->value);
+        free(aux);
+        return 0;
+    }
+
+    while (aux->next != NULL) {
+        if (strcmp(aux->next->key, key) == 0) {
+            p = aux->next;
+            aux->next = aux->next->next;
+            free(aux->key);
+            free(aux->value);
+            free(p);
+            return 0;
+        }
+        aux = aux->next;
+    }
+
+    return 0;
+}
+
 char *search(Map map, char *key) {
     int hashIndex = hashcode(key);
 
@@ -234,41 +262,60 @@ void findIndexOfToken(char *inputBuffer, char **p, char *token) {
 
 }
 
-int parseDefine(Map *map, char *token, FILE* streamRead) {
-    char* key = NULL;
-    char* mapping = NULL;
-    char* auxToken = NULL;
-    char* auxPointer = NULL;
-    char* auxPointer2 = NULL;
+int parseDefine(Map *map, char *token, FILE *streamRead, char* inputBuffer) {
+    char *key = NULL;
+    char *mapping = malloc(LINE_SIZE * sizeof(char));
+    char *auxToken = NULL;
+    char *auxPointer = NULL;
+    char *auxPointer2 = NULL;
+    char* temp = NULL;
     int code = 0;
+    int emptyLine = 0;
 
     token = strtok(NULL, DELIMITERS);
     key = token;
 
-    token = strtok(NULL, "\n");
-    mapping = strdup(token);
+    token = strtok(NULL, "\\\n");
+    strcpy(mapping, token);
 
-    if(mapping == NULL) {
+    if (mapping == NULL) {
         return ERROR_ALLOC;
     }
 
     auxToken = strtok(token, DELIMITERS);
-    while(auxToken != NULL) {
-        char* value = search(*map, auxToken);
-        if(value != NULL) {
+    while (auxToken != NULL) {
+        char *value = search(*map, auxToken);
+        if (value != NULL) {
             auxPointer = strstr(mapping, auxToken);
-            if(auxPointer != NULL) {
+            if (auxPointer != NULL) {
                 auxPointer2 = auxPointer + strlen(auxToken);
                 char *auxString = strdup(auxPointer2);
                 strcpy(auxPointer, value);
-                strcpy(auxPointer+strlen(value), auxString);
+                strcpy(auxPointer + strlen(value), auxString);
                 free(auxString);
             }
         }
         auxToken = strtok(NULL, DELIMITERS);
+        if(auxToken == NULL && temp != NULL) {
+            free(temp);
+        }
+
+        while(auxToken == NULL && strchr(inputBuffer, '\\') != NULL) {
+            if(fgets(inputBuffer, LINE_SIZE, streamRead) != NULL) {
+                temp = strdup(inputBuffer);
+                token = strtok(temp, "\\\n");
+                if(token != NULL) {
+                    strcat(mapping, token);
+                    auxToken = strtok(token, DELIMITERS);
+                }
+            }
+        }
+    }
+    if(mapping[strlen(mapping) - 1] == '\n') {
+        mapping[strlen(mapping) - 1] ='\0';
     }
     code = put(map, key, mapping);
-    if(code) {
+    if (code) {
         return ERROR_ALLOC;
     }
 
@@ -277,12 +324,12 @@ int parseDefine(Map *map, char *token, FILE* streamRead) {
 }
 
 
-int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE* streamRead) {
+int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE *streamRead) {
     char *token = NULL;
     int code = 0;
     char *value = NULL;
     char *temp = malloc((strlen(inputBuffer) + 1) * sizeof(char));
-    int emptyBuffer = 1;
+    int executeCode = 1;
 
     if (temp == NULL) {
         return ERROR_ALLOC;
@@ -292,26 +339,43 @@ int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE* stream
     token = strtok(temp, DELIMITERS);
 
     while (token != NULL) {
-        if (strcmp(token, "#define") == 0) {
-//            parseDefine(map, token, streamRead);
-//            emptyBuffer = 0;
-//            char *key = NULL;
-//            char *mapping = NULL;
-//
-//            token = strtok(NULL, DELIMITERS);
-//            key = token;
-//            token = strtok(NULL, "\n");
-//            mapping = token;
-//            code = put(map, key, mapping);
-//            if (code) {
-//                return ERROR_ALLOC;
-//            }
-            code = parseDefine(map, token, streamRead);
-            if(code) {
+        if (strncmp(token, "#define", strlen("#define")) == 0) {
+            code = parseDefine(map, token, streamRead, inputBuffer);
+            if (code) {
                 return ERROR_ALLOC;
             }
             free(temp);
             strcpy(outputBuffer, "\0");
+            return 0;
+        } else if (strcmp(token, "#undef") == 0) {
+            token = strtok(NULL, "\n");
+            if(search(*map, token) != NULL) {
+                code = deleteEntry(&map, token);
+                if(code) {
+                    return ERROR_ALLOC;
+                }
+            }
+            free(temp);
+            strcpy(outputBuffer, "\0");
+            return 0;
+        } else if(strncmp(token, "#if", strlen("#if")) == 0) {
+            token = strtok(NULL, "\n");
+            value = search(*map, token);
+            if((value != NULL && strlen(value) == 1 && value[0] == '0')
+                || (token != NULL && strlen(token) == 1 && token[0] == '0')) {
+                executeCode = 0;
+            }
+            while(executeCode == 0) {
+                fgets(inputBuffer, LINE_SIZE, streamRead);
+                token = strtok(inputBuffer, "\n");
+                if(strcmp(token, "#endif") == 0 || strcmp(token, "#else") == 0) {
+                    executeCode = 1;
+                }
+            }
+            free(temp);
+            return 0;
+        } else if(strncmp(token, "#endif", strlen("#endif")) == 0) {
+            free(temp);
             return 0;
         }
         value = search(*map, token);
@@ -413,8 +477,6 @@ int parseParameters(char *argumentsString) {
                             }
 //                            printf("%s", outputFile);
                         } else {
-                            free(inputFile);
-                            free(outputFile);
                             perror("Too many output files!");
                             exit(1);
                         }
@@ -449,8 +511,6 @@ int parseParameters(char *argumentsString) {
 //                printf("%s", inputFile);
                 } else {
                     if (outputFile != NULL) {
-                        free(inputFile);
-                        free(outputFile);
                         perror("Too many input files!");
                         exit(1);
                     } else {
