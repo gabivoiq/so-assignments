@@ -222,24 +222,67 @@ int countCharsInSubstring(char *s1, char *s2, char c) {
            : countCharsInSubstring(s1 + 1, s2, c) + (*s1 == c);
 }
 
-void findIndexOfToken(char* inputBuffer, char **p, char* token) {
+void findIndexOfToken(char *inputBuffer, char **p, char *token) {
     int no_quotes = 0;
     char *auxPointer = inputBuffer;
 
     do {
         *p = strstr(auxPointer, token);
-        no_quotes += countCharsInSubstring(auxPointer,  *p, '\"');
+        no_quotes += countCharsInSubstring(auxPointer, *p, '\"');
         auxPointer = *p + strlen(token);
     } while (no_quotes % 2 != 0);
 
 }
 
-int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer) {
-    char *token = NULL;
-    char defineDirective[] = "#define";
+int parseDefine(Map *map, char *token, FILE* streamRead) {
+    char* key = NULL;
+    char* mapping = NULL;
+    char* auxToken = NULL;
+    char* auxPointer = NULL;
+    char* auxPointer2 = NULL;
     int code = 0;
-    char* value = NULL;
+
+    token = strtok(NULL, DELIMITERS);
+    key = token;
+
+    token = strtok(NULL, "\n");
+    mapping = strdup(token);
+
+    if(mapping == NULL) {
+        return ERROR_ALLOC;
+    }
+
+    auxToken = strtok(token, DELIMITERS);
+    while(auxToken != NULL) {
+        char* value = search(*map, auxToken);
+        if(value != NULL) {
+            auxPointer = strstr(mapping, auxToken);
+            if(auxPointer != NULL) {
+                auxPointer2 = auxPointer + strlen(auxToken);
+                char *auxString = strdup(auxPointer2);
+                strcpy(auxPointer, value);
+                strcpy(auxPointer+strlen(value), auxString);
+                free(auxString);
+            }
+        }
+        auxToken = strtok(NULL, DELIMITERS);
+    }
+    code = put(map, key, mapping);
+    if(code) {
+        return ERROR_ALLOC;
+    }
+
+    free(mapping);
+    return 0;
+}
+
+
+int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE* streamRead) {
+    char *token = NULL;
+    int code = 0;
+    char *value = NULL;
     char *temp = malloc((strlen(inputBuffer) + 1) * sizeof(char));
+    int emptyBuffer = 1;
 
     if (temp == NULL) {
         return ERROR_ALLOC;
@@ -249,23 +292,25 @@ int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer) {
     token = strtok(temp, DELIMITERS);
 
     while (token != NULL) {
-        if (strncmp(token, defineDirective, strlen(defineDirective)) == 0) {
-            char *key = NULL;
-            char *mapping = NULL;
-
-            token = strtok(NULL, DELIMITERS);
-            key = token;
-            token = strtok(NULL, "\n");
-            mapping = token;
-            if (mapping[strlen(mapping) - 1] == '\n') {
-                mapping[strlen(mapping) - 1] = '\0';
-            }
-            code = put(map, key, mapping);
-            if (code) {
+        if (strcmp(token, "#define") == 0) {
+//            parseDefine(map, token, streamRead);
+//            emptyBuffer = 0;
+//            char *key = NULL;
+//            char *mapping = NULL;
+//
+//            token = strtok(NULL, DELIMITERS);
+//            key = token;
+//            token = strtok(NULL, "\n");
+//            mapping = token;
+//            code = put(map, key, mapping);
+//            if (code) {
+//                return ERROR_ALLOC;
+//            }
+            code = parseDefine(map, token, streamRead);
+            if(code) {
                 return ERROR_ALLOC;
             }
             free(temp);
-
             strcpy(outputBuffer, "\0");
             return 0;
         }
@@ -275,13 +320,13 @@ int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer) {
             char *p;
 
             findIndexOfToken(inputBuffer, &p, token);
-
             strncat(outputBuffer, inputBuffer, p - inputBuffer);
             strncat(outputBuffer, value, strlen(value));
             inputBuffer += (p - inputBuffer + strlen(token));
         }
         token = strtok(NULL, DELIMITERS);
     }
+
     strncat(outputBuffer, inputBuffer, strlen(inputBuffer));
 
     free(temp);
@@ -316,7 +361,7 @@ int execute(Map *map, const char *inputFile, const char *outputFile) {
     }
 
     while (fgets(inputBuffer, LINE_SIZE, streamRead) != NULL) {
-        int code = parseInputLine(map, inputBuffer, outputBuffer);
+        int code = parseInputLine(map, inputBuffer, outputBuffer, streamRead);
         if (code) {
             return ERROR_ALLOC;
         } else {

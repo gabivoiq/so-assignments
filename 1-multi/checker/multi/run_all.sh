@@ -33,5 +33,5 @@ END {
 }'
 
 # Cleanup testing environment
-bash "$script" cleanup
+#bash "$script" cleanup
 rm -f results.txt
