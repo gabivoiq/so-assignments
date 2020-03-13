@@ -324,12 +324,11 @@ int parseDefine(Map *map, char *token, FILE *streamRead, char* inputBuffer) {
 }
 
 
-int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE *streamRead) {
+int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE *streamRead, int* executeCode) {
     char *token = NULL;
     int code = 0;
     char *value = NULL;
     char *temp = malloc((strlen(inputBuffer) + 1) * sizeof(char));
-    int executeCode = 1;
 
     if (temp == NULL) {
         return ERROR_ALLOC;
@@ -339,7 +338,7 @@ int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE *stream
     token = strtok(temp, DELIMITERS);
 
     while (token != NULL) {
-        if (strncmp(token, "#define", strlen("#define")) == 0) {
+        if (strncmp(token, "#define", strlen("#define")) == 0 && *executeCode == 1) {
             code = parseDefine(map, token, streamRead, inputBuffer);
             if (code) {
                 return ERROR_ALLOC;
@@ -347,7 +346,7 @@ int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE *stream
             free(temp);
             strcpy(outputBuffer, "\0");
             return 0;
-        } else if (strcmp(token, "#undef") == 0) {
+        } else if (strcmp(token, "#undef") == 0 && *executeCode == 1) {
             token = strtok(NULL, "\n");
             if(search(*map, token) != NULL) {
                 code = deleteEntry(&map, token);
@@ -358,37 +357,48 @@ int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE *stream
             free(temp);
             strcpy(outputBuffer, "\0");
             return 0;
-        } else if(strncmp(token, "#if", strlen("#if")) == 0) {
+        } else if(strncmp(token, "#if", strlen("#if")) == 0 && *executeCode == 1) {
             token = strtok(NULL, "\n");
             value = search(*map, token);
             if((value != NULL && strlen(value) == 1 && value[0] == '0')
                 || (token != NULL && strlen(token) == 1 && token[0] == '0')) {
-                executeCode = 0;
-            }
-            while(executeCode == 0) {
-                fgets(inputBuffer, LINE_SIZE, streamRead);
-                token = strtok(inputBuffer, "\n");
-                if(strcmp(token, "#endif") == 0 || strcmp(token, "#else") == 0) {
-                    executeCode = 1;
-                }
+                *executeCode = 0;
+            } else {
+                *executeCode = 1;
             }
             free(temp);
             return 0;
         } else if(strncmp(token, "#endif", strlen("#endif")) == 0) {
+            *executeCode = 1;
+            free(temp);
+            strcpy(outputBuffer, "\0");
+            return 0;
+        } else if(strncmp(token, "#else", strlen("#else")) == 0) {
+            if(*executeCode == 1) {
+                *executeCode = 0;
+            } else {
+                *executeCode = 1;
+            }
+            free(temp);
+            strcpy(outputBuffer, "\0");
+            return 0;
+        }
+        if(*executeCode == 1) {
+            value = search(*map, token);
+
+            if (value != NULL) {
+                char *p;
+
+                findIndexOfToken(inputBuffer, &p, token);
+                strncat(outputBuffer, inputBuffer, p - inputBuffer);
+                strncat(outputBuffer, value, strlen(value));
+                inputBuffer += (p - inputBuffer + strlen(token));
+            }
+            token = strtok(NULL, DELIMITERS);
+        } else {
             free(temp);
             return 0;
         }
-        value = search(*map, token);
-
-        if (value != NULL) {
-            char *p;
-
-            findIndexOfToken(inputBuffer, &p, token);
-            strncat(outputBuffer, inputBuffer, p - inputBuffer);
-            strncat(outputBuffer, value, strlen(value));
-            inputBuffer += (p - inputBuffer + strlen(token));
-        }
-        token = strtok(NULL, DELIMITERS);
     }
 
     strncat(outputBuffer, inputBuffer, strlen(inputBuffer));
@@ -402,6 +412,7 @@ int execute(Map *map, const char *inputFile, const char *outputFile) {
     char inputBuffer[LINE_SIZE];
     char outputBuffer[LINE_SIZE];
     outputBuffer[0] = '\0';
+    int executeCode = 1;
 
     FILE *fin = NULL;
     FILE *fout = NULL;
@@ -425,7 +436,7 @@ int execute(Map *map, const char *inputFile, const char *outputFile) {
     }
 
     while (fgets(inputBuffer, LINE_SIZE, streamRead) != NULL) {
-        int code = parseInputLine(map, inputBuffer, outputBuffer, streamRead);
+        int code = parseInputLine(map, inputBuffer, outputBuffer, streamRead, &executeCode);
         if (code) {
             return ERROR_ALLOC;
         } else {
