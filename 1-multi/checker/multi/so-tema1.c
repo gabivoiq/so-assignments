@@ -272,7 +272,7 @@ void findIndexOfToken(char *inputBuffer, char **p, char *token) {
 int parseDefine(Map *map, char *token, FILE *streamRead, char *inputBuffer) {
     char *key = NULL;
     char *mapping = malloc(LINE_SIZE * sizeof(char));
-    if(mapping == NULL) {
+    if (mapping == NULL) {
         return ERROR_ALLOC;
     }
     char *auxToken = NULL;
@@ -286,7 +286,7 @@ int parseDefine(Map *map, char *token, FILE *streamRead, char *inputBuffer) {
     key = token;
 
     token = strtok(NULL, "\\\n");
-    if(token == NULL) {
+    if (token == NULL) {
         mapping[0] = '\0';
         code = put(map, key, mapping);
         if (code) {
@@ -297,7 +297,7 @@ int parseDefine(Map *map, char *token, FILE *streamRead, char *inputBuffer) {
     } else {
         pointerKey = strstr(inputBuffer, key);
         pointerKey += strlen(key) + 1;
-        if(inputBuffer[strlen(inputBuffer) - 2] == '\\') {
+        if (inputBuffer[strlen(inputBuffer) - 2] == '\\') {
             strncpy(token, pointerKey, strlen(pointerKey) - 2);
         } else {
             strncpy(token, pointerKey, strlen(pointerKey) - 1);
@@ -313,7 +313,7 @@ int parseDefine(Map *map, char *token, FILE *streamRead, char *inputBuffer) {
             if (auxPointer != NULL) {
                 auxPointer2 = auxPointer + strlen(auxToken);
                 char *auxString = strdup(auxPointer2);
-                if(auxString == NULL) {
+                if (auxString == NULL) {
                     return ERROR_ALLOC;
                 }
                 strcpy(auxPointer, value);
@@ -329,7 +329,7 @@ int parseDefine(Map *map, char *token, FILE *streamRead, char *inputBuffer) {
         while (auxToken == NULL && inputBuffer[strlen(inputBuffer) - 2] == '\\') {
             if (fgets(inputBuffer, LINE_SIZE, streamRead) != NULL) {
                 temp = strdup(inputBuffer);
-                if(temp == NULL) {
+                if (temp == NULL) {
                     return ERROR_ALLOC;
                 }
                 token = strtok(temp, "\\\n");
@@ -385,7 +385,7 @@ int parseIncludeDirective(Map **map, char *token, Dirs dirs, char *inputFile, in
     token++;
 
     path = calloc(p1 - inputFile + strlen(token) + 2, sizeof(char));
-    if(path == NULL) {
+    if (path == NULL) {
         return ERROR_ALLOC;
     }
     strncpy(path, inputFile, p1 - inputFile);
@@ -397,7 +397,7 @@ int parseIncludeDirective(Map **map, char *token, Dirs dirs, char *inputFile, in
     if (fp == NULL) {
         for (i = 0; i < dirs.nrDirs; i++) {
             path = realloc(path, (strlen(token) + strlen(dirs.dirPaths[i]) + 2) * sizeof(char));
-            if(path == NULL) {
+            if (path == NULL) {
                 return ERROR_ALLOC;
             }
             strcpy(path, dirs.dirPaths[i]);
@@ -608,21 +608,21 @@ int parseParameters(char *argumentsString) {
                     case 'D':
                         argumentsString++;
                         code = insertMapping(&map, &argumentsString);
-                        if(code) {
+                        if (code) {
                             return ERROR_ALLOC;
                         }
                         break;
                     case 'I':
                         if (dirs.dirPaths == NULL) {
                             dirs.dirPaths = calloc(dirs.capacity, sizeof(char *));
-                            if(dirs.dirPaths == NULL) {
+                            if (dirs.dirPaths == NULL) {
                                 return ERROR_ALLOC;
                             }
                         }
                         if (dirs.capacity <= dirs.nrDirs) {
                             dirs.capacity *= 2;
                             dirs.dirPaths = realloc(dirs.dirPaths, dirs.capacity * sizeof(char *));
-                            if(dirs.dirPaths == NULL) {
+                            if (dirs.dirPaths == NULL) {
                                 return ERROR_ALLOC;
                             }
                         }
@@ -644,18 +644,16 @@ int parseParameters(char *argumentsString) {
             } else if (argumentsString[0] != ' ') {
                 if (inputFile == NULL) {
                     code = getFilename(&argumentsString, &inputFile);
-                    if (code) {
+                    if (code)
                         return ERROR_ALLOC;
-                    }
                 } else {
                     if (outputFile != NULL) {
                         perror("Too many input files!");
                         exit(1);
                     } else {
                         code = getFilename(&argumentsString, &outputFile);
-                        if (code) {
+                        if (code)
                             return ERROR_ALLOC;
-                        }
                     }
                 }
             }
@@ -664,19 +662,15 @@ int parseParameters(char *argumentsString) {
     }
 
     code = execute(&map, inputFile, outputFile, dirs);
-    if (code) {
+    if (code)
         return ERROR_ALLOC;
-    }
-    if (outputFile != NULL) {
+    if (outputFile != NULL)
         free(outputFile);
-    }
-    if (inputFile != NULL) {
+    if (inputFile != NULL)
         free(inputFile);
-    }
     if (dirs.dirPaths != NULL) {
-        for (i = 0; i < dirs.nrDirs; i++) {
+        for (i = 0; i < dirs.nrDirs; i++)
             free(dirs.dirPaths[i]);
-        }
         free(dirs.dirPaths);
     }
     freeHashMap(&map);
@@ -690,15 +684,13 @@ int main(int argc, char *argv[]) {
 
     if (argc > 1) {
         code = getParameters(argc, argv, &argumentsString);
-        if (code) {
+        if (code)
             return ERROR_ALLOC;
-        }
     }
 
     code = parseParameters(argumentsString);
-    if (code) {
+    if (code)
         return ERROR_ALLOC;
-    }
 
     free(argumentsString);
 
