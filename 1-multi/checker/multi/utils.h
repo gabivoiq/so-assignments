@@ -1,7 +1,5 @@
 /**
  * SO, 2017
- * Lab #3, Procese
- *
  * Useful structures/macros
  */
 

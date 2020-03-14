@@ -19,6 +19,15 @@ typedef struct Map {
     struct Bucket **buckets;
 } Map;
 
+typedef struct Dirs {
+    char **dirPaths;
+    int capacity;
+    int nrDirs;
+} Dirs;
+
+int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE *streamRead, Dirs dirs, int *executeCode,
+                   char *inputFile, int writeToStdin, FILE *fout);
+
 int isEmpty(Bucket *head) {
     return head == NULL;
 }
@@ -197,16 +206,14 @@ int insertMapping(Map *map, char **argument) {
 }
 
 int getFilename(char **argument, char **filename) {
-    char delimiters[] = " ";
     char *token = NULL;
-    char *temp = malloc((strlen(*argument) + 1) * sizeof(char));
+    char *temp = strdup(*argument);
     if (temp == NULL) {
         return ERROR_ALLOC;
     }
-    strcpy(temp, *argument);
 
-    token = strtok(temp, delimiters);
-    *filename = malloc((strlen(token) + 1) * sizeof(char));
+    token = strtok(temp, " ");
+    *filename = strdup(token);
     if (*filename == NULL) {
         return ERROR_ALLOC;
     }
@@ -262,24 +269,40 @@ void findIndexOfToken(char *inputBuffer, char **p, char *token) {
 
 }
 
-int parseDefine(Map *map, char *token, FILE *streamRead, char* inputBuffer) {
+int parseDefine(Map *map, char *token, FILE *streamRead, char *inputBuffer) {
     char *key = NULL;
     char *mapping = malloc(LINE_SIZE * sizeof(char));
+    if(mapping == NULL) {
+        return ERROR_ALLOC;
+    }
     char *auxToken = NULL;
     char *auxPointer = NULL;
     char *auxPointer2 = NULL;
-    char* temp = NULL;
+    char *temp = NULL;
+    char *pointerKey = NULL;
     int code = 0;
-    int emptyLine = 0;
 
     token = strtok(NULL, DELIMITERS);
     key = token;
 
     token = strtok(NULL, "\\\n");
-    strcpy(mapping, token);
-
-    if (mapping == NULL) {
-        return ERROR_ALLOC;
+    if(token == NULL) {
+        mapping[0] = '\0';
+        code = put(map, key, mapping);
+        if (code) {
+            return ERROR_ALLOC;
+        }
+        free(mapping);
+        return 0;
+    } else {
+        pointerKey = strstr(inputBuffer, key);
+        pointerKey += strlen(key) + 1;
+        if(inputBuffer[strlen(inputBuffer) - 2] == '\\') {
+            strncpy(token, pointerKey, strlen(pointerKey) - 2);
+        } else {
+            strncpy(token, pointerKey, strlen(pointerKey) - 1);
+        }
+        strcpy(mapping, token);
     }
 
     auxToken = strtok(token, DELIMITERS);
@@ -290,29 +313,35 @@ int parseDefine(Map *map, char *token, FILE *streamRead, char* inputBuffer) {
             if (auxPointer != NULL) {
                 auxPointer2 = auxPointer + strlen(auxToken);
                 char *auxString = strdup(auxPointer2);
+                if(auxString == NULL) {
+                    return ERROR_ALLOC;
+                }
                 strcpy(auxPointer, value);
                 strcpy(auxPointer + strlen(value), auxString);
                 free(auxString);
             }
         }
         auxToken = strtok(NULL, DELIMITERS);
-        if(auxToken == NULL && temp != NULL) {
+        if (auxToken == NULL && temp != NULL) {
             free(temp);
         }
 
-        while(auxToken == NULL && strchr(inputBuffer, '\\') != NULL) {
-            if(fgets(inputBuffer, LINE_SIZE, streamRead) != NULL) {
+        while (auxToken == NULL && inputBuffer[strlen(inputBuffer) - 2] == '\\') {
+            if (fgets(inputBuffer, LINE_SIZE, streamRead) != NULL) {
                 temp = strdup(inputBuffer);
+                if(temp == NULL) {
+                    return ERROR_ALLOC;
+                }
                 token = strtok(temp, "\\\n");
-                if(token != NULL) {
+                if (token != NULL) {
                     strcat(mapping, token);
                     auxToken = strtok(token, DELIMITERS);
                 }
             }
         }
     }
-    if(mapping[strlen(mapping) - 1] == '\n') {
-        mapping[strlen(mapping) - 1] ='\0';
+    if (mapping[strlen(mapping) - 1] == '\n') {
+        mapping[strlen(mapping) - 1] = '\0';
     }
     code = put(map, key, mapping);
     if (code) {
@@ -323,71 +352,151 @@ int parseDefine(Map *map, char *token, FILE *streamRead, char* inputBuffer) {
     return 0;
 }
 
+void evaluateExpression(Map *map, char *token, int *executeCode) {
+    char *value = NULL;
+    token = strtok(NULL, "\n");
+    value = search(*map, token);
+    if ((value != NULL && strlen(value) == 1 && value[0] == '0')
+        || (token != NULL && strlen(token) == 1 && token[0] == '0')) {
+        *executeCode = 0;
+    } else {
+        *executeCode = 1;
+    }
+}
 
-int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE *streamRead, int* executeCode) {
+int parseIncludeDirective(Map **map, char *token, Dirs dirs, char *inputFile, int writeToStdin, FILE *fout) {
+
+    int i = 0;
+    char *path = NULL;
+    char *p1 = inputFile;
+    char *p2 = strstr(p1, "/");
+    char inputBufferInclude[LINE_SIZE];
+    char outputBufferInclude[LINE_SIZE];
+    outputBufferInclude[0] = '\0';
+
+    int executeCode = 1;
+
+    while (p2 != NULL) {
+        p1 += (p2 - p1);
+        p2 = strstr(p1 + 1, "/");
+    }
+    token = strtok(NULL, "\n");
+    token[strlen(token) - 1] = '\0';
+    token++;
+
+    path = calloc(p1 - inputFile + strlen(token) + 2, sizeof(char));
+    if(path == NULL) {
+        return ERROR_ALLOC;
+    }
+    strncpy(path, inputFile, p1 - inputFile);
+    strcat(path, "/");
+    strcat(path, token);
+
+    FILE *fp = fopen(path, "r");
+
+    if (fp == NULL) {
+        for (i = 0; i < dirs.nrDirs; i++) {
+            path = realloc(path, (strlen(token) + strlen(dirs.dirPaths[i]) + 2) * sizeof(char));
+            if(path == NULL) {
+                return ERROR_ALLOC;
+            }
+            strcpy(path, dirs.dirPaths[i]);
+            strcat(path, "/");
+            strcat(path, token);
+            fp = fopen(path, "r");
+
+            if (fp != NULL) {
+                break;
+            }
+        }
+    }
+
+    DIE(fp == NULL, "Bad include");
+    free(path);
+
+    while (fgets(inputBufferInclude, LINE_SIZE, fp) != NULL) {
+        int code = parseInputLine(*map, inputBufferInclude, outputBufferInclude, fp, dirs, &executeCode, inputFile,
+                                  writeToStdin, fout);
+        if (code) {
+            return ERROR_ALLOC;
+        } else {
+            if (writeToStdin) {
+                printf("%s", outputBufferInclude);
+            } else {
+                fprintf(fout, "%s", outputBufferInclude);
+            }
+        }
+        outputBufferInclude[0] = '\0';
+    }
+
+    fclose(fp);
+
+    return 0;
+}
+
+int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE *streamRead, Dirs dirs, int *executeCode,
+                   char *inputFile, int writeToStdin, FILE *fout) {
+
     char *token = NULL;
     int code = 0;
     char *value = NULL;
-    char *temp = malloc((strlen(inputBuffer) + 1) * sizeof(char));
-
+    int writeOutput = 1;
+    char *temp = strdup(inputBuffer);
     if (temp == NULL) {
         return ERROR_ALLOC;
     }
 
-    strcpy(temp, inputBuffer);
     token = strtok(temp, DELIMITERS);
 
     while (token != NULL) {
+        writeOutput = 0;
         if (strncmp(token, "#define", strlen("#define")) == 0 && *executeCode == 1) {
             code = parseDefine(map, token, streamRead, inputBuffer);
             if (code) {
                 return ERROR_ALLOC;
             }
-            free(temp);
-            strcpy(outputBuffer, "\0");
-            return 0;
+            break;
         } else if (strcmp(token, "#undef") == 0 && *executeCode == 1) {
             token = strtok(NULL, "\n");
-            if(search(*map, token) != NULL) {
+            if (search(*map, token) != NULL) {
                 code = deleteEntry(&map, token);
-                if(code) {
+                if (code) {
                     return ERROR_ALLOC;
                 }
             }
-            free(temp);
-            strcpy(outputBuffer, "\0");
-            return 0;
-        } else if(strncmp(token, "#if", strlen("#if")) == 0 && *executeCode == 1) {
+            break;
+        } else if ((strcmp(token, "#if") == 0 && *executeCode == 1)
+                   || (strcmp(token, "#elif") == 0 && *executeCode == 0)) {
+            evaluateExpression(map, token, executeCode);
+            break;
+        } else if (strncmp(token, "#endif", strlen("#endif")) == 0) {
+            *executeCode = 1;
+            break;
+        } else if (strncmp(token, "#else", strlen("#else")) == 0) {
+            *executeCode = (*executeCode == 1) ? 0 : 1;
+            break;
+        } else if (strcmp(token, "#ifdef") == 0 && *executeCode == 1) {
             token = strtok(NULL, "\n");
             value = search(*map, token);
-            if((value != NULL && strlen(value) == 1 && value[0] == '0')
-                || (token != NULL && strlen(token) == 1 && token[0] == '0')) {
-                *executeCode = 0;
-            } else {
-                *executeCode = 1;
+            *executeCode = value != NULL ? 1 : 0;
+            break;
+        } else if (strcmp(token, "#ifndef") == 0 && *executeCode == 1) {
+            token = strtok(NULL, "\n");
+            value = search(*map, token);
+            *executeCode = value != NULL ? 0 : 1;
+            break;
+        } else if (strcmp(token, "#include") == 0 && *executeCode == 1) {
+            code = parseIncludeDirective(&map, token, dirs, inputFile, writeToStdin, fout);
+            if (code) {
+                return ERROR_ALLOC;
             }
-            free(temp);
-            return 0;
-        } else if(strncmp(token, "#endif", strlen("#endif")) == 0) {
-            *executeCode = 1;
-            free(temp);
-            strcpy(outputBuffer, "\0");
-            return 0;
-        } else if(strncmp(token, "#else", strlen("#else")) == 0) {
-            if(*executeCode == 1) {
-                *executeCode = 0;
-            } else {
-                *executeCode = 1;
-            }
-            free(temp);
-            strcpy(outputBuffer, "\0");
-            return 0;
-        }
-        if(*executeCode == 1) {
+            break;
+        } else if (*executeCode == 1) {
+            writeOutput = 1;
             value = search(*map, token);
 
             if (value != NULL) {
-                char *p;
+                char *p = NULL;
 
                 findIndexOfToken(inputBuffer, &p, token);
                 strncat(outputBuffer, inputBuffer, p - inputBuffer);
@@ -396,19 +505,19 @@ int parseInputLine(Map *map, char *inputBuffer, char *outputBuffer, FILE *stream
             }
             token = strtok(NULL, DELIMITERS);
         } else {
-            free(temp);
-            return 0;
+            break;
         }
     }
 
-    strncat(outputBuffer, inputBuffer, strlen(inputBuffer));
+    if (writeOutput == 1) {
+        strncat(outputBuffer, inputBuffer, strlen(inputBuffer));
+    }
 
     free(temp);
-
     return 0;
 }
 
-int execute(Map *map, const char *inputFile, const char *outputFile) {
+int execute(Map *map, char *inputFile, const char *outputFile, Dirs dirs) {
     char inputBuffer[LINE_SIZE];
     char outputBuffer[LINE_SIZE];
     outputBuffer[0] = '\0';
@@ -436,7 +545,8 @@ int execute(Map *map, const char *inputFile, const char *outputFile) {
     }
 
     while (fgets(inputBuffer, LINE_SIZE, streamRead) != NULL) {
-        int code = parseInputLine(map, inputBuffer, outputBuffer, streamRead, &executeCode);
+        int code = parseInputLine(map, inputBuffer, outputBuffer, streamRead, dirs, &executeCode, inputFile,
+                                  writeToStdin, fout);
         if (code) {
             return ERROR_ALLOC;
         } else {
@@ -460,10 +570,14 @@ int execute(Map *map, const char *inputFile, const char *outputFile) {
 }
 
 int parseParameters(char *argumentsString) {
+    Dirs dirs;
+    dirs.dirPaths = NULL;
+    dirs.capacity = 1;
+    dirs.nrDirs = 0;
     char *outputFile = NULL;
     char *inputFile = NULL;
-    char *dir = NULL;
     int code = 0;
+    int i = 0;
     Map map;
 
     map.buckets = calloc(MAP_SIZE, sizeof(Bucket *));
@@ -486,7 +600,6 @@ int parseParameters(char *argumentsString) {
                             if (code) {
                                 return ERROR_ALLOC;
                             }
-//                            printf("%s", outputFile);
                         } else {
                             perror("Too many output files!");
                             exit(1);
@@ -494,20 +607,35 @@ int parseParameters(char *argumentsString) {
                         break;
                     case 'D':
                         argumentsString++;
-                        insertMapping(&map, &argumentsString);
+                        code = insertMapping(&map, &argumentsString);
+                        if(code) {
+                            return ERROR_ALLOC;
+                        }
                         break;
                     case 'I':
+                        if (dirs.dirPaths == NULL) {
+                            dirs.dirPaths = calloc(dirs.capacity, sizeof(char *));
+                            if(dirs.dirPaths == NULL) {
+                                return ERROR_ALLOC;
+                            }
+                        }
+                        if (dirs.capacity <= dirs.nrDirs) {
+                            dirs.capacity *= 2;
+                            dirs.dirPaths = realloc(dirs.dirPaths, dirs.capacity * sizeof(char *));
+                            if(dirs.dirPaths == NULL) {
+                                return ERROR_ALLOC;
+                            }
+                        }
                         argumentsString++;
                         if (argumentsString[0] == ' ') {
                             argumentsString++;
                         }
-                        if (dir != NULL) {
-                            free(dir);
-                        }
-                        code = getFilename(&argumentsString, &dir);
+
+                        code = getFilename(&argumentsString, &dirs.dirPaths[dirs.nrDirs]);
                         if (code) {
                             return ERROR_ALLOC;
                         }
+                        dirs.nrDirs++;
                         break;
                     default:
                         perror("Bad parameter!");
@@ -519,7 +647,6 @@ int parseParameters(char *argumentsString) {
                     if (code) {
                         return ERROR_ALLOC;
                     }
-//                printf("%s", inputFile);
                 } else {
                     if (outputFile != NULL) {
                         perror("Too many input files!");
@@ -529,7 +656,6 @@ int parseParameters(char *argumentsString) {
                         if (code) {
                             return ERROR_ALLOC;
                         }
-//                    printf("%s", outputFile);
                     }
                 }
             }
@@ -537,7 +663,7 @@ int parseParameters(char *argumentsString) {
         }
     }
 
-    code = execute(&map, inputFile, outputFile);
+    code = execute(&map, inputFile, outputFile, dirs);
     if (code) {
         return ERROR_ALLOC;
     }
@@ -547,8 +673,11 @@ int parseParameters(char *argumentsString) {
     if (inputFile != NULL) {
         free(inputFile);
     }
-    if (dir != NULL) {
-        free(dir);
+    if (dirs.dirPaths != NULL) {
+        for (i = 0; i < dirs.nrDirs; i++) {
+            free(dirs.dirPaths[i]);
+        }
+        free(dirs.dirPaths);
     }
     freeHashMap(&map);
 

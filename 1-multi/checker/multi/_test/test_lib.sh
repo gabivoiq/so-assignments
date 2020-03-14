@@ -99,7 +99,7 @@ memory_test()
     if test $res -eq 0; then
         test_do_pass "$mem_points"
     else
-        test_do_fail "$mem_poits"
+        test_do_fail "$mem_points"
     fi
 }
 
