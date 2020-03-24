@@ -45,6 +45,8 @@ int main(int argc, char *argv[])
 	int total;
 	int chunk_size = 2000;
 	int to_read;
+	int size_member;
+	int total_members;
 
 	tmp = malloc(buf_len);
 	FAIL_IF(!tmp, "malloc failed\n");
@@ -55,6 +57,11 @@ int main(int argc, char *argv[])
 		test_work_dir = argv[1];
 	else
 		test_work_dir = "_test";
+
+	if (argc == 3)
+		size_member = atoi(argv[2]);
+	else
+		size_member = 1;
 
 	sprintf(fpath, "%s/huge_file", test_work_dir);
 
@@ -78,11 +85,12 @@ int main(int argc, char *argv[])
 		else
 			to_read = chunk_size;
 
-		ret = so_fread(&tmp[total], 1, to_read, f);
+		total_members = to_read / size_member;
+		ret = so_fread(&tmp[total], size_member, total_members, f);
 
-		FAIL_IF(ret != to_read, "Incorrect return value for so_fread: got %d, expected %d\n", ret, to_read);
+		FAIL_IF(ret != total_members, "Incorrect return value for so_fread: got %d, expected %d\n", ret, total_members);
 
-		total += ret;
+		total += total_members * size_member;
 	}
 
 	FAIL_IF(num_ReadFile != 49, "Incorrect number of reads: got %d, expected %d\n", num_ReadFile, 49);
