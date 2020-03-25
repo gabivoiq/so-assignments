@@ -25,5 +25,5 @@ END {
 }'
 
 # Cleanup testing environment
-bash ./_test/"$script" cleanup
+#bash ./_test/"$script" cleanup
 rm -f results.txt

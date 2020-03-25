@@ -29,7 +29,7 @@
 #define SEEK_END	2	/* Seek from end of file.  */
 
 #define SO_EOF (-1)
-#define BUFIZE 4096
+#define BUFSIZE 4096
 
 struct _so_file;
 

@@ -261,7 +261,7 @@ int try_hook_rel(struct dyn_info *di, ElfW(Rel) *rel, int sz, struct func_hook *
  *
  * We do this by modifying the GOT entries.
  *
- * The GOT offset for one particular symbol is found in the
+ * The GOT buffer_offset for one particular symbol is found in the
  * r_offset field of the Elf_Rela structure associated with that symbol
  *
  */
