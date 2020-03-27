@@ -59,7 +59,7 @@ init_test()
 # Cleanups a test
 cleanup_test()
 {
-	[ "$DO_CLEANUP" = "yes" ] && rm -rf "$TEST_WORK_DIR" &> /dev/null
+	[ "$DO_CLEANUP" = "no" ] && rm -rf "$TEST_WORK_DIR" &> /dev/null
 }
 
 # Initializes the whole testing environment

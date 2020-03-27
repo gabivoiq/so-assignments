@@ -30,6 +30,8 @@
 
 #define SO_EOF (-1)
 #define BUFSIZE 4096
+#define PIPE_READ 0
+#define PIPE_WRITE 1
 
 struct _so_file;
 
