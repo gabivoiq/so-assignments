@@ -1,0 +1,49 @@
+LINUX:
+
+Tema rezolvata integral pe linux - fara coding style
+
+Detalii legate de implementare:
+
+- Structura folosita :
+
+typedef struct _so_file {
+	int fd;
+	int end_of_file;
+	int buffer_offset;
+	char buffer[BUFSIZE];
+	int buffer_count;
+	int write_syscall;
+	int last_operation_read;
+	int position_file;
+	int err;
+	__pid_t pid;
+} SO_FILE;
+
+- fd - filedescriptorul de care am nevoie sa stiu in ce fisier scriu / de unde citesc
+- end_of_file - destul de explicit
+- buffer_offset - folosit la citire pentru a sti indexul la care am ajuns in buffer cu citirea
+- buffer[BUFSIZE] - bufferul
+- buffer_count - variabila care imi spune daca am citit/scris tot bufferul si acum trebuie sa citesc,
+respectiv sa scriu in fisier. De exemplu, in cazul in care scriu si buffer_count ajunge la BUFSIZE,
+atunci scriu in fisier toate caracterele din buffer, iar apoi il golesc.
+- write_syscall - variabila care imi spune ca bufferul nu e gol la scriere - folosit la fflush
+- last_operation_read - folosit la fseek (explicit)
+- position_file - pozitia din fisier
+- err - eroare
+- pid - pidul procesului copil - folosit la popen/pclose
+
+===========================================================================================================
+
+WINDOWS:
+
+- Toata tema rezolvata, fara popen si pclose
+
+- Aceeasi structura ca pe LINUX, doar ca filedescriptorul e un HANDLE.
+
+- In principiu tema identica ca cea de pe Linux, doar functiile de read/write schimbate si verificarea 
+valorile de retur
+
+===========================================================================================================
+
+Resurse utilizate : 
+- laboratoarele 1, 2, 3

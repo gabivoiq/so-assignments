@@ -1,0 +1,42 @@
+Tema rezolvata integral
+
+- 2 fisiere .c : so-tema1.c (se afla marea parte a temei), hashmap.c (functiile utilizate pentru hashmap) 
+- 2 fisiere header : utils.h (pentru DIE din laboratoare), so-tema1.h (prototip functii, structuri, defines)
+
+Detalii legate de implementare:
+
+- Pentru stocarea define-urilor folosesc un hashmap implementat de mine, care are dimensiunea maxima de 1000
+buckets. Buckets-urile sunt liste inlantuite. In cazul coliziunilor, adaug la sfarsitul listei cheia cu
+valoarea asociata.
+
+- Parsarea argumentelor: stochez intr-un string toate argumentele primite, dupa care parsez pe rand fiecare
+argument
+
+- Scrierea/citirea: citesc linie cu linie din fisier sau stdin iar apoi parsez linia in functia
+parseInputLine. In anumite cazuri (la multi-line defines) citesc mai multe linii daca dau de caracterul '\'
+
+- Parsarea tokenilor din fisier: cu strtok si delimitatorii recomandati in enunt
+
+- Implementare #define: adaug un element nou in hashmap cu valoarea data sau string gol daca nu este
+asociata o valoarea
+
+- Implementare #undef: sterg valoarea din hashmap
+
+- Implementare #if, #elif: daca MACRO-ul e 0, retin intr-o variabila executeCode valoarea 0 de care ma folosesc 
+sa imi dau seama daca trebuie sa scriu sau nu in fisier. Daca MACRO-ul e diferit de 0, variabila devine 1.
+
+- Implementare #endif: variabila executeCode devine 1.
+
+- Implementare #else: daca executeCode e 1, devine 0 sau invers
+
+- Implementare #ifndef: daca executeCode e 1, caut MACRO-ul in hashmap. Daca gasesc valoarea, executeCode
+devine 0. La ifdef este la fel, doar ca daca gasesc valoarea in hashmap, executeCode devine 1.
+
+-Implementare #include: caut intai fisierul specificat de include in directorul in care se afla fisierul sursa.
+Daca nu exista, iau fiecare director in parte specificat ca argument si verific daca fisierul header se afla
+intr-unul din ele. Daca il gasesc, incep sa il parsez exact cum parsez si fisierul de input, citind linie
+cu linie si parsand liniile cu functia parseInputLine.
+
+Daca pe o linie nu am directive de prepocesare, scriu in fisierul de output, verificand mereu tokenurile
+daca se afla sau nu in hashmap. Daca se afla in hashmap, in loc de MACRO, scriu valoarea respectiva, mai
+putin in cazul in care MACRO-ul se afla intre ghilimele si e tratat ca string.
