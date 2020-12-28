@@ -1,0 +1,35 @@
+Tema rezolvata integral pe Linux
+
+Detalii legate de implementare:
+
+- Pentru a retine paginile mapate, ma folosesc de o lista simplu inlantuita,
+declarata static:
+
+typedef struct Page {
+	uintptr_t addr_start; - adresa de la care incepe pagina
+	struct Page *next;
+} Page;
+
+static Page *mapped_pages;
+
+Mereu cand mapez o pagina noua, o adaug la sfarsitul listei mapped_pages.
+
+- Flowul functiei care trateaza page-fault-urile este cam asa:
+    1. Verific daca pagina care contine adresa de segfault este deja mapata.
+    Daca este, rulez handlerul default.
+    2. Daca nu este, iterez prin segmente si verific daca adresa de segfault
+    este inclusa intre adresa de inceput si andresa de inceput + memsize
+    3. Daca adresa de segfault este inclusa, mapez pagina care contine adresa
+    cu drepturi de WRITE (pentru ca trebuie sa scriem din fisier)
+    si o adaug in lista.
+    4. Citesc din fisier & zeroizez in functie de offseturi.
+    5. Apelez mprotect cu permisiunile segmentului si ies din functie.
+    6. Daca adresa de segfault nu e continuta de niciun segment, atunci apelez
+    handlerul default.
+
+===============================================================================
+
+Resurse utilizate: laboratorul 4 si laboratorul 6 (ex.5 in special de unde m-am
+inspirat cu initializarea handlerului de segfault).
+
+Dificultati intampinate: debug foarte dificil de realizat
